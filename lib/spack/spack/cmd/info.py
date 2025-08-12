@@ -39,15 +39,17 @@ class Formatter:
     """Generic formatter for elements displayed by `spack info`.
 
     Elements have four parts: name, values, when condition, and description. They can
-    be formatted two ways (shown here for variants)::
+    be formatted two ways (shown here for variants):
 
     Grouped by when (default)::
+
         when +cuda
           cuda_arch [none]                            none, 10, 100, 100a, 101,
                                                       101a, 11, 12, 120, 120a, 13
               CUDA architecture
 
     Or, by name (each name has a when nested under it)::
+
         cuda_arch [none]                              none, 10, 100, 100a, 101,
                                                       101a, 11, 12, 120, 120a, 13
           when +cuda
