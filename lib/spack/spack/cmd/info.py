@@ -147,7 +147,7 @@ def print_detectable(pkg: PackageBase, args: Namespace) -> None:
     """output information on external detection"""
 
     color.cprint("")
-    color.cprint(section_title("Externally Detectable: "))
+    color.cprint(section_title("Externally Detectable:"))
 
     # If the package has an 'executables' of 'libraries' field, it
     # can detect an installation
