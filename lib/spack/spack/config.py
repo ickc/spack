@@ -813,6 +813,7 @@ def override(
 #: python code that evaluates to a boolean and or explicit specification
 #: as optional.
 class IncludePath(NamedTuple):
+    name: str
     path: str
     when: str
     sha256: str
@@ -831,11 +832,12 @@ def included_path(entry: Union[str, dict]) -> IncludePath:
     if isinstance(entry, str):
         return IncludePath(path=entry, sha256="", when="", optional=False)
 
+    name = entry.get("name", "")
     path = entry["path"]
     sha256 = entry.get("sha256", "")
     when = entry.get("when", "")
     optional = entry.get("optional", False)
-    return IncludePath(path=path, sha256=sha256, when=when, optional=optional)
+    return IncludePath(name=name, path=path, sha256=sha256, when=when, optional=optional)
 
 
 def include_path_scope(include: IncludePath, parent_scope: ConfigScope) -> Optional[ConfigScope]:
@@ -860,29 +862,35 @@ def include_path_scope(include: IncludePath, parent_scope: ConfigScope) -> Optio
         if not config_path:
             raise ConfigFileError(f"Unable to fetch remote configuration from {include.path}")
 
-        # Try to use the relative path to create the included scope name
-        parent_path = getattr(parent_scope, "path", None)
-        if parent_path and str(parent_path) == os.path.commonprefix([parent_path, config_path]):
-            included_name = os.path.relpath(config_path, parent_path)
-        else:
-            included_name = config_path
+        # use specified name if there is one
+        config_name = include.name
 
-        if sys.platform == "win32":
-            # Clean windows path for use in config name that looks nicer
-            # ie. The path: C:\\some\\path\\to\\a\\file
-            # becomes C/some/path/to/a/file
-            included_name = included_name.replace("\\", "/")
-            included_name = included_name.replace(":", "")
+        if not config_name:
+            # Try to use the relative path to create the included scope name
+            parent_path = getattr(parent_scope, "path", None)
+            if parent_path and str(parent_path) == os.path.commonprefix(
+                [parent_path, config_path]
+            ):
+                included_name = os.path.relpath(config_path, parent_path)
+            else:
+                included_name = config_path
+
+            if sys.platform == "win32":
+                # Clean windows path for use in config name that looks nicer
+                # ie. The path: C:\\some\\path\\to\\a\\file
+                # becomes C/some/path/to/a/file
+                included_name = included_name.replace("\\", "/")
+                included_name = included_name.replace(":", "")
+
+            config_name = f"{parent_scope.name}:{included_name}"
 
         if os.path.isdir(config_path):
             # directories are treated as regular ConfigScopes
-            config_name = f"{parent_scope.name}:{included_name}"
             tty.debug(f"Creating DirectoryConfigScope {config_name} for '{config_path}'")
             return DirectoryConfigScope(config_name, config_path)
 
         if os.path.exists(config_path):
             # files are assumed to be SingleFileScopes
-            config_name = f"{parent_scope.name}:{included_name}"
             tty.debug(f"Creating SingleFileScope {config_name} for '{config_path}'")
             return SingleFileScope(config_name, config_path, spack.schema.merged.schema)
 

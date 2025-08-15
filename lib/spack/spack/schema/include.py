@@ -20,6 +20,7 @@ properties: Dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "when": {"type": "string"},
+                        "name": {"type": "string"},
                         "path": {"type": "string"},
                         "sha256": {"type": "string"},
                         "optional": {"type": "boolean"},
