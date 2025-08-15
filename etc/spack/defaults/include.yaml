@@ -1,4 +1,9 @@
 include:
+  # instance configuration scope (overrides user, lives in spack)
+  # - name: "instance"
+  #   path: "$spack/etc/spack/local"
+  #   optional: true
+
   # user configuration scope
   - name: "user"
     path: "~/.spack"
