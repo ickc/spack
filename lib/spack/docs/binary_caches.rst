@@ -256,8 +256,6 @@ To reduce the likelihood of this happening, it is highly recommended to add padd
        padded_length: 128
 
 
-.. _binary_caches_oci:
-
 Automatic Push to a Build Cache
 ---------------------------------
 
@@ -292,6 +290,8 @@ will have the same effect as
 .. note::
 
     Packages are automatically pushed to a build cache only if they are built from source.
+
+.. _binary_caches_oci:
 
 OCI / Docker V2 Registries as Build Cache
 -----------------------------------------

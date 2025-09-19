@@ -4,25 +4,36 @@
 
 .. meta::
    :description lang=en:
-      Learn how to turn Spack environments into container images, either by copying existing installations or by generating recipes for Docker and Singularity.
+      Learn how to create OCI compatible container images, either by copying existing installations or by generating recipes for Docker and Singularity.
 
 .. _containers:
 
 Container Images
 ================
 
-Spack :ref:`environments` can easily be turned into container images.
+Spack installed packages can easily be turned into container images.
 This page outlines two ways in which this can be done:
 
-1. By installing the environment on the host system and copying the installations into the container image.
+1. By installing packages on the host system and copying the installations into the container image.
    This approach does not require any tools like Docker or Singularity to be installed.
-2. By generating a Docker or Singularity recipe that can be used to build the container image.
+2. By generating a Docker or Singularity recipe from a :doc:`Spack environment <environments>`.
    In this approach, Spack builds the software inside the container runtime, not on the host system.
 
-The first approach is easiest if you already have an installed environment, the second approach gives more control over the container image.
+The first approach is simpler and faster, the second approach gives more control over the contents of the container image.
 
 From Existing Installations
 ---------------------------
+
+You can turn existing Spack installations or even fully installed software stacks into container images.
+
+In this section we will give two examples.
+The :ref:`first example <installed-environments-as-containers>` shows how to tag and push an entire Spack environment to a remote OCI registry.
+The :ref:`second example <local-registry-example>` illustrates how to test the process using a local registry.
+
+.. _installed-environments-as-containers:
+
+Pushing Spack Environments as Container Images
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If you already have a Spack environment installed on your system, you can share the binaries as an OCI-compatible container image.
 To get started, you just have to configure an OCI registry and run ``spack buildcache push``.
@@ -30,17 +41,23 @@ To get started, you just have to configure an OCI registry and run ``spack build
 .. code-block:: spec
 
    # Create and install an environment in the current directory
-   $ spack env create -d .
+   $ spack env create .
    $ spack -e . add pkg-a pkg-b
    $ spack -e . install
 
    # Configure the registry
-   $ spack -e . mirror add --oci-username-variable REGISTRY_USER \
-                           --oci-password-variable REGISTRY_TOKEN \
-                           container-registry oci://example.com/name/image
+   $ spack -e . mirror add \
+         --oci-username-variable REGISTRY_USER \
+         --oci-password-variable REGISTRY_TOKEN \
+         container-registry \
+         oci://example.com/name/image
 
-   # Push the image (do set REGISTRY_USER and REGISTRY_TOKEN)
-   $ spack -e . buildcache push --update-index --base-image ubuntu:22.04 --tag my_env container-registry
+   # Push the image
+   $ REGISTRY_USER=user REGISTRY_TOKEN=token spack -e . buildcache push \
+       --update-index \
+       --base-image ubuntu:24.04 \
+       --tag my_env \
+       container-registry
 
 The resulting container image can then be run as follows:
 
@@ -56,23 +73,72 @@ The image is minimal by construction, it only contains the environment roots and
   When using registries like GHCR and Docker Hub, the ``--oci-password`` flag specifies not the password for your account but rather a personal access token that you need to generate separately.
 
 The specified ``--base-image`` should have a libc that is compatible with the host system.
-For example, if your host system is Ubuntu 20.04, you can use ``ubuntu:20.04``, ``ubuntu:22.04``, or newer: the libc in the container image must be at least the version of the host system, assuming ABI compatibility.
+For example, if your host system is Ubuntu 22.04, you can use ``ubuntu:22.04``, ``ubuntu:24.04``, or newer: the libc in the container image must be at least the version of the host system, assuming ABI compatibility.
 It is also perfectly fine to use a completely different Linux distribution as long as the libc is compatible.
 
 For convenience, Spack also turns the OCI registry into a :ref:`build cache <binary_caches_oci>`, so that future ``spack install`` of the environment will simply pull the binaries from the registry instead of doing source builds.
 The flag ``--update-index`` is needed to make Spack take the build cache into account when concretizing.
 
-.. note::
 
-  When generating container images in CI, the approach above is recommended when CI jobs already run in a sandboxed environment.
-  You can simply use Spack directly in the CI job and push the resulting image to a registry.
-  Subsequent CI jobs should run faster because Spack can install from the same registry instead of rebuilding from sources.
+.. _local-registry-example:
+
+Using a local registry
+^^^^^^^^^^^^^^^^^^^^^^
+
+For testing purposes, you can run a local registry on your machine and let Spack push to it.
+Setting it up is straightforward; no authentication is needed, so the ``spack mirror add`` step is not necessary.
+
+First, run the `official registry image <https://hub.docker.com/_/registry>`_ in a separate terminal:
+
+.. code-block:: console
+
+   $ docker run -d -p 5000:5000 --name registry registry
+
+On the command line, we can refer to the local registry with ``oci+http://localhost:5000/<name>``, where ``<name>`` is the name of our choice for our container image.
+Notice that we use ``oci+http://`` instead of ``oci://``, because the local registry does not support HTTPS.
+
+Let's assume we have ``python@3.13`` installed on our current system and we wish to turn it into a container image.
+
+.. code-block:: console
+
+   $ spack find --very-long python@3.13
+   -- linux-ubuntu24.04-zen2 / %c,cxx=gcc@14.2.0 -------------------
+   phbszqtyrsn2mlrb3gyj77u5vpbfdch6 python@3.13.2
+
+All we need to do now is push it to the local registry:
+
+.. code-block:: console
+
+   $ spack buildcache push \
+         --unsigned \
+         --base-image ubuntu:24.04 \
+         oci+http://localhost:5000/buildcache \
+         python@3.13
+
+The last line of the output should look like this:
+
+.. code-block:: text
+
+   ==> [74/74] Tagged python@3.13.2/phbszqt as localhost:5000/buildcache:python-3.13.2-phbszqtyrsn2mlrb3gyj77u5vpbfdch6.spack
+
+The tag ``python-3.13.2-phbszqtyrsn2mlrb3gyj77u5vpbfdch6.spack`` is automatically generated by Spack based on the package name, version, and hash.
+We can now run this image with:
+
+.. code-block:: console
+
+   $ docker run -it localhost:5000/buildcache:python-3.13.2-phbszqtyrsn2mlrb3gyj77u5vpbfdch6.spack
+   root@container-id:/# python3 --version
+   Python 3.13.2
+   root@container-id:/#
+
 
 Generating recipes for Docker and Singularity
 ---------------------------------------------
 
 Apart from copying existing installations into container images, Spack can also generate recipes for container images.
 This is useful if you want to run Spack itself in a sandboxed environment instead of on the host system.
+
+This approach requires you to have a container runtime like Docker or Singularity installed on your system, and can only be used using Spack environments.
 
 Since recipes need a little more boilerplate than:
 
@@ -87,7 +153,7 @@ Customizations include minimizing the size of the image, installing packages in 
 .. _cmd-spack-containerize:
 
 A Quick Introduction
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 Consider having a Spack environment like the following:
 
@@ -164,7 +230,7 @@ The various components involved in the generation of the recipe and their config
 .. _container_spack_images:
 
 Spack Images on Docker Hub
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Docker images with Spack preinstalled and ready to be used are built when a release is tagged, or nightly on ``develop``.
 The images are then pushed both to `Docker Hub <https://hub.docker.com/u/spack>`_ and to `GitHub Container Registry <https://github.com/orgs/spack/packages?repo_name=spack>`_.
@@ -226,7 +292,7 @@ These images are available for anyone to use and take care of all the repetitive
 The container recipes generated by Spack use them as default base images for their ``build`` stage, even though options to use custom base images provided by users are available to accommodate complex use cases.
 
 Configuring the Container Recipe
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Any Spack environment can be used for the automatic generation of container recipes.
 Sensible defaults are provided for things like the base image or the version of Spack used in the image.
@@ -266,7 +332,7 @@ If finer tuning is needed, it can be obtained by adding the relevant metadata un
 A detailed description of the options available can be found in the :ref:`container_config_options` section.
 
 Setting Base Images
-~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 The ``images`` subsection is used to select both the image where Spack builds the software and the image where the built software is installed.
 This attribute can be set in different ways and which one to use depends on the use case at hand.
@@ -461,7 +527,7 @@ Users may need to generate their base images themselves, and it's also their res
 Therefore, we do not recommend its use in cases that can be otherwise covered by the simplified mode shown first.
 
 Singularity Definition Files
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In addition to producing recipes in ``Dockerfile`` format, Spack can produce Singularity Definition Files by just changing the value of the ``format`` attribute:
 
@@ -480,7 +546,7 @@ In addition to producing recipes in ``Dockerfile`` format, Spack can produce Sin
 The minimum version of Singularity required to build a SIF (Singularity Image Format) image from the recipes generated by Spack is ``3.5.3``.
 
 Extending the Jinja2 Templates
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``Dockerfile`` and the Singularity definition file that Spack can generate are based on a few Jinja2 templates that are rendered according to the Spack environment being containerized.
 Even though Spack allows a great deal of customization by just setting appropriate values for the configuration options, sometimes that is not enough.
@@ -598,7 +664,7 @@ The recipe that gets generated contains the two extra instructions that we added
 .. _container_config_options:
 
 Configuration Reference
-~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 
 The tables below describe all the configuration options that are currently supported to customize the generation of container recipes:
 
@@ -695,7 +761,7 @@ The tables below describe all the configuration options that are currently suppo
      - No
 
 Best Practices
-~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^
 
 MPI
 """"""
