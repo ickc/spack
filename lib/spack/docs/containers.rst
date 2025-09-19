@@ -53,11 +53,12 @@ To get started, you just have to configure an OCI registry and run ``spack build
          oci://example.com/name/image
 
    # Push the image
-   $ REGISTRY_USER=user REGISTRY_TOKEN=token spack -e . buildcache push \
-       --update-index \
-       --base-image ubuntu:24.04 \
-       --tag my_env \
-       container-registry
+   $ REGISTRY_USER=user REGISTRY_TOKEN=token \
+     spack -e . buildcache push \
+         --update-index \
+         --base-image ubuntu:24.04 \
+         --tag my_env \
+         container-registry
 
 The resulting container image can then be run as follows:
 
@@ -70,7 +71,7 @@ The image is minimal by construction, it only contains the environment roots and
 
 .. note::
 
-  When using registries like GHCR and Docker Hub, the ``--oci-password`` flag specifies not the password for your account but rather a personal access token that you need to generate separately.
+  When using registries like GHCR and Docker Hub, the "OCI password" is a Personal Access Token (PAT) that you need to generate separately -- it is **not** your account password.
 
 The specified ``--base-image`` should have a libc that is compatible with the host system.
 For example, if your host system is Ubuntu 22.04, you can use ``ubuntu:22.04``, ``ubuntu:24.04``, or newer: the libc in the container image must be at least the version of the host system, assuming ABI compatibility.
@@ -187,7 +188,7 @@ The ``Dockerfile`` that gets created uses multi-stage builds and other technique
    &&   echo "  concretizer:" \
    &&   echo "    unify: true" \
    &&   echo "  config:" \
-   &&   echo "    install_tree: \
+   &&   echo "    install_tree:" \
    &&   echo "      root: /opt/software" \
    &&   echo "  view: /opt/view") > /opt/spack-environment/spack.yaml
 
@@ -372,15 +373,15 @@ uses ``spack/almalinux9:0.22.0`` and ``almalinux:9`` for the stages where the so
    RUN mkdir -p /opt/spack-environment && \
    set -o noclobber \
    &&  (echo spack: \
-   &&   echo '  specs:' \
-   &&   echo '  - gromacs+mpi' \
-   &&   echo '  - mpich' \
-   &&   echo '  concretizer:' \
-   &&   echo '    unify: true' \
-   &&   echo '  config:' \
-   &&   echo '    install_tree: ' \
-   &&   echo '      root: /opt/software' \
-   &&   echo '  view: /opt/views/view') > /opt/spack-environment/spack.yaml
+   &&   echo "  specs:" \
+   &&   echo "  - gromacs+mpi" \
+   &&   echo "  - mpich" \
+   &&   echo "  concretizer:" \
+   &&   echo "    unify: true" \
+   &&   echo "  config:" \
+   &&   echo "    install_tree:" \
+   &&   echo "      root: /opt/software" \
+   &&   echo "  view: /opt/views/view") > /opt/spack-environment/spack.yaml
    [ ... ]
    # Bare OS image to run the installed executables
    FROM quay.io/almalinuxorg/almalinux:9
@@ -488,7 +489,7 @@ produces, for instance, the following ``Dockerfile``:
    &&   echo "  concretizer:" \
    &&   echo "    unify: true" \
    &&   echo "  config:" \
-   &&   echo "    install_tree: " \
+   &&   echo "    install_tree:" \
    &&   echo "      root: /opt/software" \
    &&   echo "  view: /opt/view") > /opt/spack-environment/spack.yaml
 
@@ -628,7 +629,7 @@ The recipe that gets generated contains the two extra instructions that we added
    &&   echo "  config:" \
    &&   echo "    template_dirs:" \
    &&   echo "    - /tmp/environment/templates" \
-   &&   echo "    install_tree: " \
+   &&   echo "    install_tree:" \
    &&   echo "      root: /opt/software" \
    &&   echo "  view: /opt/view") > /opt/spack-environment/spack.yaml
 
