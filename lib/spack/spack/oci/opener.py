@@ -189,7 +189,7 @@ def parse_www_authenticate(input: str):
 class RealmServiceScope(NamedTuple):
     realm: str
     service: str
-    scope: str
+    scope: Optional[str]  # required in e.g. Dockerhub, but not AWS ECR
 
 
 class UsernamePassword(NamedTuple):
@@ -209,7 +209,7 @@ def get_bearer_challenge(challenges: List[Challenge]) -> Optional[RealmServiceSc
     service = next((v for k, v in challenge.params if k == "service"), None)
     scope = next((v for k, v in challenge.params if k == "scope"), None)
 
-    if realm is None or service is None or scope is None:
+    if realm is None or service is None:
         return None
 
     return RealmServiceScope(realm, service, scope)
@@ -228,10 +228,11 @@ class OCIAuthHandler(urllib.request.BaseHandler):
 
     def obtain_bearer_token(self, registry: str, challenge: RealmServiceScope, timeout) -> str:
         # See https://docs.docker.com/registry/spec/auth/token/
+        params = {"realm": challenge.realm, "service": challenge.service, "client_id": "spack"}
+        if challenge.scope:
+            params["scope"] = challenge.scope
 
-        query = urllib.parse.urlencode(
-            {"service": challenge.service, "scope": challenge.scope, "client_id": "spack"}
-        )
+        query = urllib.parse.urlencode(params)
 
         parsed = urllib.parse.urlparse(challenge.realm)._replace(
             query=query, fragment="", params=""
